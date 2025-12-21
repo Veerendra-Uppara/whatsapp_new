@@ -15,6 +15,7 @@ function App() {
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
+  const [loginError, setLoginError] = useState('');
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -90,11 +91,36 @@ function App() {
 
   const handleJoin = (e) => {
     e.preventDefault();
-    if (username.trim() && userId.trim() && socket) {
-      console.log('Joining chat with:', { username: username.trim(), userId: userId.trim() });
-      socket.emit('join', { username: username.trim(), userId: userId.trim() });
-      setHasJoined(true); // Set immediately to prevent message sending before join completes
+    setLoginError('');
+    
+    const trimmedUsername = username.trim();
+    const trimmedUserId = userId.trim();
+    
+    if (!trimmedUsername || !trimmedUserId) {
+      setLoginError('Please enter both name and ID');
+      return;
     }
+    
+    if (!socket) {
+      setLoginError('Not connected to server. Please wait...');
+      return;
+    }
+    
+    // Validate credentials against allowed users
+    if (!validateCredentials(trimmedUsername, trimmedUserId)) {
+      setLoginError('Invalid credentials. Only authorized users can access this chat.');
+      return;
+    }
+    
+    console.log('Joining chat with:', { username: trimmedUsername, userId: trimmedUserId });
+    
+    // Update state with trimmed values so message comparison works correctly
+    console.log('Setting userId state to:', `"${trimmedUserId}"`);
+    setUsername(trimmedUsername);
+    setUserId(trimmedUserId);
+    
+    socket.emit('join', { username: trimmedUsername, userId: trimmedUserId });
+    setHasJoined(true); // Set immediately to prevent message sending before join completes
   };
 
   const handleImageSelect = (e) => {
@@ -221,9 +247,18 @@ function App() {
     return name.charAt(0).toUpperCase();
   };
 
-  // Hardcoded credentials (for reference)
-  // User 1: veerendra / Veeru@123
-  // User 2: Madhu / Madhu@123
+  // Allowed users - only these 2 can login
+  const allowedUsers = [
+    { username: 'veerendra', userId: 'veeru@123' },
+    { username: 'madhu', userId: 'madhu@123' }
+  ];
+
+  const validateCredentials = (username, userId) => {
+    return allowedUsers.some(
+      user => user.username.toLowerCase() === username.trim().toLowerCase() && 
+              user.userId.toLowerCase() === userId.trim().toLowerCase()
+    );
+  };
 
   if (!hasJoined) {
     return (
@@ -242,7 +277,10 @@ function App() {
                   type="text"
                   placeholder="Enter your name"
                   value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  onChange={(e) => {
+                    setUsername(e.target.value);
+                    setLoginError(''); // Clear error when user types
+                  }}
                   className="input-field"
                   required
                   autoFocus
@@ -251,14 +289,22 @@ function App() {
               <div className="input-group">
                 <label>Your ID</label>
                 <input
-                  type="text"
-                  placeholder="Enter unique ID"
+                  type="password"
+                  placeholder="Enter your ID"
                   value={userId}
-                  onChange={(e) => setUserId(e.target.value)}
+                  onChange={(e) => {
+                    setUserId(e.target.value);
+                    setLoginError(''); // Clear error when user types
+                  }}
                   className="input-field"
                   required
                 />
               </div>
+              {loginError && (
+                <div className="login-error">
+                  {loginError}
+                </div>
+              )}
               <button type="submit" className="join-button" disabled={!username.trim() || !userId.trim()}>
                 Join Chat
               </button>
@@ -336,7 +382,21 @@ function App() {
 
         <div className="messages-container">
           {messages.map((msg, index) => {
-            const isOwnMessage = msg.userId === userId;
+            // Compare userIds after trimming to handle any whitespace issues
+            const msgUserId = msg.userId ? msg.userId.trim() : '';
+            const currentUserId = userId ? userId.trim() : '';
+            const isOwnMessage = msgUserId && currentUserId && msgUserId === currentUserId;
+            
+            // Debug logging (check browser console)
+            if (index === 0) {
+              console.log('First message userId comparison:', {
+                msgUserId: `"${msgUserId}"`,
+                currentUserId: `"${currentUserId}"`,
+                match: isOwnMessage,
+                msgUserIdLength: msgUserId.length,
+                currentUserIdLength: currentUserId.length
+              });
+            }
             return (
               <div
                 key={index}
