@@ -1,105 +1,39 @@
-const sqlite3 = require('sqlite3').verbose();
-const { Pool } = require('pg');
-const path = require('path');
+const { MongoClient } = require('mongodb');
 
-// Check if DATABASE_URL is set (PostgreSQL) or use SQLite
-const DATABASE_URL = process.env.DATABASE_URL;
-const USE_POSTGRES = !!DATABASE_URL;
+// MongoDB connection URL (hardcoded as requested)
+const MONGODB_URI = 'mongodb+srv://veeru:veeru123@connectapp.rdrcqrl.mongodb.net/test';
+const DB_NAME = 'Chatting';
+const COLLECTION_NAME = 'messages';
 
-let pgPool = null;
-let sqliteDb = null;
-const DB_PATH = path.join(__dirname, 'chat.db');
+let client = null;
+let db = null;
+let collection = null;
 
-// Initialize database
+// Initialize MongoDB database
 async function initDatabase() {
-  if (USE_POSTGRES) {
-    try {
-      // Parse DATABASE_URL and create connection pool
-      pgPool = new Pool({
-        connectionString: DATABASE_URL,
-        ssl: {
-          rejectUnauthorized: false // Required for Supabase
-        }
-      });
+  try {
+    // Create MongoDB client
+    client = new MongoClient(MONGODB_URI);
 
-      // Test connection
-      const client = await pgPool.connect();
-      console.log('✅ Connected to PostgreSQL database (Supabase)');
+    // Connect to MongoDB
+    await client.connect();
+    console.log('✅ Connected to MongoDB database');
 
-      // Create messages table if it doesn't exist
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS messages (
-          id SERIAL PRIMARY KEY,
-          message TEXT,
-          username TEXT NOT NULL,
-          "userId" TEXT NOT NULL,
-          timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          "imageUrl" TEXT,
-          "messageType" TEXT DEFAULT 'text'
-        )
-      `);
+    // Get database and collection
+    db = client.db(DB_NAME);
+    collection = db.collection(COLLECTION_NAME);
 
-      // Add missing columns if they don't exist (for existing databases)
-      try {
-        await client.query(`ALTER TABLE messages ADD COLUMN "imageUrl" TEXT`);
-      } catch (err) {
-        // Column already exists, ignore
-      }
+    // Create index on timestamp for faster queries
+    await collection.createIndex({ timestamp: 1 });
+    await collection.createIndex({ userId: 1 });
 
-      try {
-        await client.query(`ALTER TABLE messages ADD COLUMN "messageType" TEXT DEFAULT 'text'`);
-      } catch (err) {
-        // Column already exists, ignore
-      }
-
-      client.release();
-      console.log('✅ Messages table ready (PostgreSQL)');
-      return pgPool;
-    } catch (err) {
-      console.error('❌ Error initializing PostgreSQL:', err.message);
-      throw err;
-    }
-  } else {
-    // Fallback to SQLite for local development
-    return new Promise((resolve, reject) => {
-      const db = new sqlite3.Database(DB_PATH, (err) => {
-        if (err) {
-          console.error('Error opening SQLite database:', err.message);
-          reject(err);
-          return;
-        }
-        console.log('Connected to SQLite database (local dev)');
-      });
-
-      // Create messages table if it doesn't exist
-      db.run(`
-        CREATE TABLE IF NOT EXISTS messages (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          message TEXT,
-          username TEXT NOT NULL,
-          userId TEXT NOT NULL,
-          timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          imageUrl TEXT,
-          messageType TEXT DEFAULT 'text'
-        )
-      `, (err) => {
-        if (err) {
-          console.error('Error creating table:', err.message);
-          reject(err);
-          return;
-        }
-        
-        // Add missing columns if they don't exist (for existing databases)
-        db.run(`ALTER TABLE messages ADD COLUMN imageUrl TEXT`, () => {});
-        db.run(`ALTER TABLE messages ADD COLUMN messageType TEXT DEFAULT 'text'`, () => {});
-        
-        console.log('Messages table ready (SQLite)');
-        sqliteDb = db;
-        resolve(db);
-      });
-    });
+    console.log(`✅ MongoDB collection '${COLLECTION_NAME}' ready in database '${DB_NAME}'`);
+    
+    // Return collection for backward compatibility with existing code
+    return collection;
+  } catch (err) {
+    console.error('❌ Error initializing MongoDB:', err.message);
+    throw err;
   }
 }
 
@@ -108,139 +42,103 @@ async function saveMessage(db, messageData) {
   const { message, username, userId, timestamp, imageUrl, messageType } = messageData;
   const timestampValue = timestamp || new Date().toISOString();
 
-  if (USE_POSTGRES) {
-    try {
-      const result = await db.query(
-        `INSERT INTO messages (message, username, "userId", timestamp, "imageUrl", "messageType") 
-         VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-        [
-          message || null,
-          username,
-          userId,
-          timestampValue,
-          imageUrl || null,
-          messageType || 'text'
-        ]
-      );
-      return { id: result.rows[0].id, ...messageData };
-    } catch (err) {
-      console.error('Error saving message (PostgreSQL):', err.message);
-      throw err;
-    }
-  } else {
-    // SQLite
-    return new Promise((resolve, reject) => {
-      const sql = `INSERT INTO messages (message, username, userId, timestamp, imageUrl, messageType) VALUES (?, ?, ?, ?, ?, ?)`;
-      
-      db.run(sql, [
-        message || null,
-        username,
-        userId,
-        timestampValue,
-        imageUrl || null,
-        messageType || 'text'
-      ], function(err) {
-        if (err) {
-          console.error('Error saving message (SQLite):', err.message);
-          reject(err);
-        } else {
-          resolve({ id: this.lastID, ...messageData });
-        }
-      });
-    });
+  try {
+    const messageDoc = {
+      message: message || null,
+      username: username,
+      userId: userId,
+      timestamp: timestampValue,
+      imageUrl: imageUrl || null,
+      messageType: messageType || 'text',
+      createdAt: new Date()
+    };
+
+    const result = await collection.insertOne(messageDoc);
+    
+    // MongoDB returns _id as ObjectId, convert to string for consistency
+    return {
+      id: result.insertedId.toString(),
+      ...messageData
+    };
+  } catch (err) {
+    console.error('Error saving message to MongoDB:', err.message);
+    throw err;
   }
 }
 
 // Get message history
 async function getMessages(db, limit = 100) {
-  if (USE_POSTGRES) {
-    try {
-      const result = await db.query(
-        `SELECT * FROM messages ORDER BY timestamp DESC LIMIT $1`,
-        [limit]
-      );
-      // Reverse to get chronological order (oldest first)
-      return result.rows.reverse();
-    } catch (err) {
-      console.error('Error fetching messages (PostgreSQL):', err.message);
-      throw err;
-    }
-  } else {
-    // SQLite
-    return new Promise((resolve, reject) => {
-      const sql = `SELECT * FROM messages ORDER BY timestamp DESC LIMIT ?`;
-      
-      db.all(sql, [limit], (err, rows) => {
-        if (err) {
-          console.error('Error fetching messages (SQLite):', err.message);
-          reject(err);
-        } else {
-          // Reverse to get chronological order (oldest first)
-          resolve(rows.reverse());
-        }
-      });
-    });
+  try {
+    const messages = await collection
+      .find({})
+      .sort({ timestamp: 1 }) // Sort ascending (oldest first)
+      .limit(limit)
+      .toArray();
+
+    // Convert MongoDB documents to expected format
+    return messages.map(msg => ({
+      id: msg._id.toString(),
+      message: msg.message,
+      username: msg.username,
+      userId: msg.userId,
+      timestamp: msg.timestamp,
+      imageUrl: msg.imageUrl || null,
+      messageType: msg.messageType || 'text'
+    }));
+  } catch (err) {
+    console.error('Error fetching messages from MongoDB:', err.message);
+    throw err;
   }
 }
 
 // Get messages by user ID
 async function getMessagesByUserId(db, userId, limit = 100) {
-  if (USE_POSTGRES) {
-    try {
-      const result = await db.query(
-        `SELECT * FROM messages WHERE "userId" = $1 ORDER BY timestamp DESC LIMIT $2`,
-        [userId, limit]
-      );
-      return result.rows.reverse();
-    } catch (err) {
-      console.error('Error fetching user messages (PostgreSQL):', err.message);
-      throw err;
-    }
-  } else {
-    // SQLite
-    return new Promise((resolve, reject) => {
-      const sql = `SELECT * FROM messages WHERE userId = ? ORDER BY timestamp DESC LIMIT ?`;
-      
-      db.all(sql, [userId, limit], (err, rows) => {
-        if (err) {
-          console.error('Error fetching user messages (SQLite):', err.message);
-          reject(err);
-        } else {
-          resolve(rows.reverse());
-        }
-      });
-    });
+  try {
+    const messages = await collection
+      .find({ userId: userId })
+      .sort({ timestamp: 1 }) // Sort ascending (oldest first)
+      .limit(limit)
+      .toArray();
+
+    // Convert MongoDB documents to expected format
+    return messages.map(msg => ({
+      id: msg._id.toString(),
+      message: msg.message,
+      username: msg.username,
+      userId: msg.userId,
+      timestamp: msg.timestamp,
+      imageUrl: msg.imageUrl || null,
+      messageType: msg.messageType || 'text'
+    }));
+  } catch (err) {
+    console.error('Error fetching user messages from MongoDB:', err.message);
+    throw err;
   }
 }
 
 // Delete old messages (optional cleanup function)
 async function deleteOldMessages(db, daysOld = 30) {
-  if (USE_POSTGRES) {
-    try {
-      const result = await db.query(
-        `DELETE FROM messages WHERE timestamp < NOW() - INTERVAL '${daysOld} days'`
-      );
-      console.log(`Deleted ${result.rowCount} old messages`);
-      return result.rowCount;
-    } catch (err) {
-      console.error('Error deleting old messages (PostgreSQL):', err.message);
-      throw err;
-    }
-  } else {
-    // SQLite
-    return new Promise((resolve, reject) => {
-      const sql = `DELETE FROM messages WHERE timestamp < datetime('now', '-' || ? || ' days')`;
-      
-      db.run(sql, [daysOld], function(err) {
-        if (err) {
-          console.error('Error deleting old messages (SQLite):', err.message);
-          reject(err);
-        } else {
-          console.log(`Deleted ${this.changes} old messages`);
-          resolve(this.changes);
-        }
-      });
+  try {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - daysOld);
+
+    const result = await collection.deleteMany({
+      timestamp: { $lt: cutoffDate.toISOString() }
     });
+
+    console.log(`Deleted ${result.deletedCount} old messages from MongoDB`);
+    return result.deletedCount;
+  } catch (err) {
+    console.error('Error deleting old messages from MongoDB:', err.message);
+    throw err;
+  }
+}
+
+// Close database connection (useful for graceful shutdown)
+async function closeDatabase() {
+  if (client) {
+    await client.close();
+    console.log('MongoDB connection closed');
   }
 }
 
@@ -250,5 +148,6 @@ module.exports = {
   getMessages,
   getMessagesByUserId,
   deleteOldMessages,
-  DB_PATH
+  closeDatabase,
+  DB_PATH: 'MongoDB'
 };
