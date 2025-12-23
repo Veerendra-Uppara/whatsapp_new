@@ -4,7 +4,7 @@ const socketIo = require('socket.io');
 const path = require('path');
 const cors = require('cors');
 const fs = require('fs');
-const { initDatabase, saveMessage, getMessages, getUserProfilePhoto } = require('./database');
+const { initDatabase, saveMessage, getMessages, deleteMessage, getUserProfilePhoto } = require('./database');
 
 const app = express();
 const server = http.createServer(app);
@@ -129,6 +129,33 @@ io.on('connection', (socket) => {
     // Broadcast message to all connected clients (for private chat)
     console.log('Broadcasting message to all clients');
     io.emit('receiveMessage', messagePayload);
+  });
+
+  // Handle delete message
+  socket.on('deleteMessage', async (data) => {
+    const { messageId } = data;
+    console.log(`🗑️ Delete message request: ${messageId}`);
+    
+    if (!messageId) {
+      socket.emit('deleteMessageError', { error: 'Message ID is required' });
+      return;
+    }
+
+    try {
+      if (db) {
+        await deleteMessage(db, messageId);
+        console.log(`✅ Message ${messageId} deleted from database`);
+      } else {
+        console.warn('⚠️ Database not initialized, message not deleted from database');
+      }
+      
+      // Broadcast deletion to all connected clients
+      io.emit('messageDeleted', { messageId });
+      console.log(`✅ Deletion broadcasted for message ${messageId}`);
+    } catch (err) {
+      console.error('❌ Error deleting message:', err.message);
+      socket.emit('deleteMessageError', { error: err.message });
+    }
   });
 
   // Handle typing indicator

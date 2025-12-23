@@ -141,6 +141,36 @@ async function getMessagesByUserId(db, userId, limit = 100) {
   }
 }
 
+// Delete a specific message by ID
+async function deleteMessage(db, messageId) {
+  try {
+    if (!collection) {
+      throw new Error('MongoDB collection not initialized');
+    }
+
+    // MongoDB uses ObjectId, messages stored have _id as ObjectId
+    // We return id as msg._id.toString() in getMessages, so we need to convert back
+    const { ObjectId } = require('mongodb');
+    
+    if (!ObjectId.isValid(messageId)) {
+      throw new Error('Invalid message ID format');
+    }
+
+    const query = { _id: new ObjectId(messageId) };
+    const result = await collection.deleteOne(query);
+
+    if (result.deletedCount === 0) {
+      throw new Error('Message not found or already deleted');
+    }
+
+    console.log(`✅ Message deleted successfully (ID: ${messageId})`);
+    return { success: true, deletedCount: result.deletedCount };
+  } catch (err) {
+    console.error('❌ Error deleting message from MongoDB:', err.message);
+    throw err;
+  }
+}
+
 // Delete old messages (optional cleanup function)
 async function deleteOldMessages(db, daysOld = 30) {
   try {
@@ -238,6 +268,7 @@ module.exports = {
   saveMessage,
   getMessages,
   getMessagesByUserId,
+  deleteMessage,
   deleteOldMessages,
   saveUserProfilePhoto,
   getUserProfilePhoto,
