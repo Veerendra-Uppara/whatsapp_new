@@ -133,21 +133,32 @@ export default function ChatUI() {
         return `http://${hostname}:5000`;
       };
       
+      const apiUrl = getApiUrl();
+      console.log('Fetching profile photos from:', apiUrl);
+      
       for (const user of users) {
         try {
-          const apiUrl = getApiUrl();
-          const response = await fetch(`${apiUrl}/api/user-photo/${user}`);
+          const photoUrl = `${apiUrl}/api/user-photo/${user}`;
+          console.log(`Fetching photo for ${user} from:`, photoUrl);
+          const response = await fetch(photoUrl);
+          console.log(`Response for ${user}:`, response.status, response.statusText);
           if (response.ok) {
             const data = await response.json();
             if (data.photo) {
               photos[user] = data.photo;
+              console.log(`✅ Profile photo loaded for ${user}`);
+            } else {
+              console.log(`⚠️ No photo data for ${user}`);
             }
+          } else {
+            console.log(`❌ Failed to fetch photo for ${user}: ${response.status} ${response.statusText}`);
           }
         } catch (err) {
-          console.log(`Profile photo not found for ${user}`);
+          console.error(`❌ Error fetching profile photo for ${user}:`, err);
         }
       }
       
+      console.log('Profile photos loaded:', Object.keys(photos));
       setProfilePhotos(photos);
     };
 
