@@ -416,11 +416,24 @@ export default function ChatUI() {
 
   // Get other user's name (for header)
   const getOtherUserName = () => {
-    if (messages.length === 0) return 'Chat';
-    const otherUser = messages.find(msg => msg.userId !== userId);
-    if (otherUser) {
-      return otherUser.username.charAt(0).toUpperCase() + otherUser.username.slice(1).toLowerCase();
+    // First, try to find other user from messages
+    if (messages.length > 0) {
+      const otherUser = messages.find(msg => msg.userId !== userId);
+      if (otherUser) {
+        return otherUser.username.charAt(0).toUpperCase() + otherUser.username.slice(1).toLowerCase();
+      }
     }
+    
+    // If no messages, determine other user based on current logged-in user
+    if (username) {
+      const currentUserLower = username.toLowerCase();
+      // Find the other user from allowedUsers
+      const otherUser = allowedUsers.find(user => user.username.toLowerCase() !== currentUserLower);
+      if (otherUser) {
+        return otherUser.username.charAt(0).toUpperCase() + otherUser.username.slice(1).toLowerCase();
+      }
+    }
+    
     return 'Chat';
   };
 
