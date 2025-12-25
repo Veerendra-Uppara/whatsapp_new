@@ -17,8 +17,14 @@ const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 
 export default function ChatUI() {
   const [socket, setSocket] = useState(null);
-  const [username, setUsername] = useState('');
-  const [userId, setUserId] = useState('');
+  const [username, setUsername] = useState(() => {
+    // Restore from localStorage on mount
+    return localStorage.getItem('savedUsername') || '';
+  });
+  const [userId, setUserId] = useState(() => {
+    // Restore from localStorage on mount
+    return localStorage.getItem('savedUserId') || '';
+  });
   const [messages, setMessages] = useState([]);
   const [message, setMessage] = useState('');
   const [isConnected, setIsConnected] = useState(false);
@@ -129,6 +135,11 @@ export default function ChatUI() {
     newSocket.on('joined', (data) => {
       console.log('Joined:', data);
       setHasJoined(true);
+      // Save credentials to localStorage on successful join
+      if (username && userId) {
+        localStorage.setItem('savedUsername', username);
+        localStorage.setItem('savedUserId', userId);
+      }
     });
 
     newSocket.on('messageHistory', (history) => {
@@ -242,6 +253,32 @@ export default function ChatUI() {
       newSocket.close();
     };
   }, []);
+
+  // Auto-login when socket connects and credentials are available
+  useEffect(() => {
+    if (socket && isConnected && username && userId && !hasJoined) {
+      console.log('Auto-login with saved credentials:', username);
+      // Validate credentials before auto-login
+      const allowedUsers = [
+        { username: 'veerendra', userId: 'veeru@123' },
+        { username: 'madhu', userId: 'madhu@123' }
+      ];
+      
+      const isValid = allowedUsers.some(
+        user => user.username === username.trim().toLowerCase() && user.userId === userId.trim().toLowerCase()
+      );
+      
+      if (isValid) {
+        socket.emit('join', { username: username.trim().toLowerCase(), userId: userId.trim() });
+      } else {
+        // Clear invalid saved credentials
+        localStorage.removeItem('savedUsername');
+        localStorage.removeItem('savedUserId');
+        setUsername('');
+        setUserId('');
+      }
+    }
+  }, [socket, isConnected, hasJoined, username, userId]);
 
   useEffect(() => {
     scrollToBottom();
