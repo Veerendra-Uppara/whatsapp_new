@@ -46,7 +46,7 @@ async function initDatabase() {
 
 // Save a message to the database
 async function saveMessage(db, messageData) {
-  const { message, username, userId, timestamp, imageUrl, messageType } = messageData;
+  const { message, username, userId, timestamp, imageUrl, audioUrl, messageType, replyTo } = messageData;
   const timestampValue = timestamp || new Date().toISOString();
 
   // Validate required fields
@@ -64,7 +64,9 @@ async function saveMessage(db, messageData) {
       userId: userId.trim(),
       timestamp: timestampValue,
       imageUrl: imageUrl || null,
+      audioUrl: audioUrl || null,
       messageType: messageType || 'text',
+      replyTo: replyTo || null,
       createdAt: new Date()
     };
 
@@ -108,7 +110,9 @@ async function getMessages(db, limit = 100) {
       userId: msg.userId,
       timestamp: msg.timestamp,
       imageUrl: msg.imageUrl || null,
-      messageType: msg.messageType || 'text'
+      audioUrl: msg.audioUrl || null,
+      messageType: msg.messageType || 'text',
+      replyTo: msg.replyTo || null
     }));
   } catch (err) {
     console.error('Error fetching messages from MongoDB:', err.message);
@@ -133,7 +137,9 @@ async function getMessagesByUserId(db, userId, limit = 100) {
       userId: msg.userId,
       timestamp: msg.timestamp,
       imageUrl: msg.imageUrl || null,
-      messageType: msg.messageType || 'text'
+      audioUrl: msg.audioUrl || null,
+      messageType: msg.messageType || 'text',
+      replyTo: msg.replyTo || null
     }));
   } catch (err) {
     console.error('Error fetching user messages from MongoDB:', err.message);

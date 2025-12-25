@@ -74,7 +74,7 @@ io.on('connection', (socket) => {
   // Handle sending messages
   socket.on('sendMessage', async (messageData) => {
     console.log('📨 Received sendMessage event:', JSON.stringify(messageData, null, 2));
-    const { message, username, userId, timestamp, imageUrl, messageType, replyTo } = messageData;
+    const { message, username, userId, timestamp, imageUrl, audioUrl, messageType, replyTo } = messageData;
     const user = users.get(socket.id);
     
     console.log('👤 Current user for socket:', user);
@@ -91,10 +91,11 @@ io.on('connection', (socket) => {
       console.error('❌ Invalid username or userId:', { finalUsername, finalUserId, originalData: { username, userId }, storedUser: user });
     }
     
-    // Check if it's an image message or text message
+    // Check if it's an image, audio, or text message
     const isImageMessage = imageUrl && messageType === 'image';
+    const isAudioMessage = audioUrl && messageType === 'audio';
     
-    if (!isImageMessage && (!message || !message.trim())) {
+    if (!isImageMessage && !isAudioMessage && (!message || !message.trim())) {
       console.log('Empty message, ignoring');
       return;
     }
@@ -107,11 +108,16 @@ io.on('connection', (socket) => {
       timestamp: messageTimestamp,
       socketId: socket.id,
       imageUrl: imageUrl || null,
+      audioUrl: audioUrl || null,
       messageType: messageType || 'text',
       replyTo: replyTo || null
     };
     
-    console.log('Processing message:', { ...messagePayload, imageUrl: imageUrl ? 'present' : 'none' });
+    console.log('Processing message:', { 
+      ...messagePayload, 
+      imageUrl: imageUrl ? 'present' : 'none',
+      audioUrl: audioUrl ? `${audioUrl.substring(0, 50)}... (${audioUrl.length} chars)` : 'none'
+    });
     
     // Save message to database
     if (db) {
@@ -130,6 +136,70 @@ io.on('connection', (socket) => {
     // Broadcast message to all connected clients (for private chat)
     console.log('Broadcasting message to all clients');
     io.emit('receiveMessage', messagePayload);
+  });
+
+  // Handle mark message as read
+  socket.on('markMessageRead', async (data) => {
+    const { messageId, readBy } = data;
+    console.log(`📖 Mark message ${messageId} as read by ${readBy}`);
+    
+    // Broadcast read receipt to all clients
+    io.emit('messageRead', {
+      messageId,
+      readBy: readBy.toLowerCase(),
+      readAt: new Date().toISOString()
+    });
+  });
+
+  // Handle message reactions
+  socket.on('addReaction', (data) => {
+    const { messageId, emoji, username } = data;
+    console.log(`😊 Reaction ${emoji} added to message ${messageId} by ${username}`);
+    
+    // Broadcast reaction to all clients
+    io.emit('messageReaction', {
+      messageId,
+      emoji,
+      username: username.toLowerCase(),
+      action: 'add'
+    });
+  });
+
+  // Handle edit message
+  socket.on('editMessage', async (data) => {
+    const { messageId, newMessage } = data;
+    const user = users.get(socket.id);
+    
+    if (!user) {
+      socket.emit('editMessageError', { error: 'User not found' });
+      return;
+    }
+    
+    console.log(`✏️ Editing message ${messageId} by ${user.username}`);
+    
+    // Update in database
+    if (db) {
+      try {
+        const { ObjectId } = require('mongodb');
+        if (!ObjectId.isValid(messageId)) {
+          throw new Error('Invalid message ID format');
+        }
+        
+        await collection.updateOne(
+          { _id: new ObjectId(messageId) },
+          { $set: { message: newMessage, edited: true, editedAt: new Date() } }
+        );
+        console.log(`✅ Message ${messageId} updated in database`);
+      } catch (err) {
+        console.error('❌ Error updating message:', err.message);
+      }
+    }
+    
+    // Broadcast edit to all clients
+    io.emit('messageEdited', {
+      messageId,
+      newMessage
+    });
   });
 
   // Handle delete message
