@@ -41,23 +41,32 @@ export default function ChatUI() {
     { username: 'madhu', userId: 'madhu@123' }
   ];
 
+  // Shared function to get backend URL
+  const getBackendUrl = () => {
+    // First, check for environment variable (set at build time)
+    if (process.env.REACT_APP_SOCKET_URL) {
+      return process.env.REACT_APP_SOCKET_URL;
+    }
+    
+    // For local development
+    const hostname = window.location.hostname;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return 'http://localhost:5000';
+    }
+    
+    // For production, warn if env variable is missing
+    if (window.location.hostname.includes('pages.dev') || window.location.hostname.includes('cloudflare')) {
+      console.error('⚠️ REACT_APP_SOCKET_URL not set! Profile photos and socket may not work.');
+      console.error('⚠️ Please set REACT_APP_SOCKET_URL in Cloudflare Pages environment variables.');
+    }
+    
+    // Fallback: try using current hostname (won't work for Cloudflare + Railway)
+    return `http://${hostname}:5000`;
+  };
+
   useEffect(() => {
     // Initialize socket connection
-    // Use environment variable, or detect from current location, or fallback to localhost
-    const getSocketUrl = () => {
-      if (process.env.REACT_APP_SOCKET_URL) {
-        return process.env.REACT_APP_SOCKET_URL;
-      }
-      // Get current hostname and use port 5000 for backend
-      const hostname = window.location.hostname;
-      if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        return 'http://localhost:5000';
-      }
-      // For mobile/network access, use the same hostname with port 5000
-      return `http://${hostname}:5000`;
-    };
-    
-    const socketUrl = getSocketUrl();
+    const socketUrl = getBackendUrl();
     console.log('Connecting to socket:', socketUrl);
     const newSocket = io(socketUrl);
     setSocket(newSocket);
@@ -133,19 +142,15 @@ export default function ChatUI() {
       const users = Array.from(uniqueUsers);
       const photos = {};
       
-      const getApiUrl = () => {
-        if (process.env.REACT_APP_SOCKET_URL) {
-          return process.env.REACT_APP_SOCKET_URL;
-        }
-        const hostname = window.location.hostname;
-        if (hostname === 'localhost' || hostname === '127.0.0.1') {
-          return 'http://localhost:5000';
-        }
-        return `http://${hostname}:5000`;
-      };
-      
-      const apiUrl = getApiUrl();
+      const apiUrl = getBackendUrl();
       console.log('Fetching profile photos from:', apiUrl);
+      
+      // Check if we're in production without env variable
+      if (!process.env.REACT_APP_SOCKET_URL && (window.location.hostname.includes('pages.dev') || window.location.hostname.includes('cloudflare'))) {
+        console.error('❌ REACT_APP_SOCKET_URL environment variable is not set in Cloudflare Pages!');
+        console.error('❌ Profile photos cannot be fetched. Please set REACT_APP_SOCKET_URL in Cloudflare Pages settings.');
+        console.error('❌ Expected format: https://your-railway-app.railway.app');
+      }
       console.log('Fetching photos for users:', users);
       
       for (const user of users) {
