@@ -119,7 +119,18 @@ export default function ChatUI() {
   // Fetch profile photos
   useEffect(() => {
     const fetchProfilePhotos = async () => {
-      const users = ['veerendra', 'madhu'];
+      // Get unique usernames from messages and current user
+      const uniqueUsers = new Set();
+      if (username) uniqueUsers.add(username.toLowerCase());
+      messages.forEach(msg => {
+        if (msg.username) uniqueUsers.add(msg.username.toLowerCase());
+      });
+      
+      // Also add common users as fallback
+      uniqueUsers.add('veerendra');
+      uniqueUsers.add('madhu');
+      
+      const users = Array.from(uniqueUsers);
       const photos = {};
       
       const getApiUrl = () => {
@@ -135,6 +146,7 @@ export default function ChatUI() {
       
       const apiUrl = getApiUrl();
       console.log('Fetching profile photos from:', apiUrl);
+      console.log('Fetching photos for users:', users);
       
       for (const user of users) {
         try {
@@ -165,7 +177,7 @@ export default function ChatUI() {
     if (hasJoined) {
       fetchProfilePhotos();
     }
-  }, [hasJoined]);
+  }, [hasJoined, messages, username]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -654,8 +666,29 @@ export default function ChatUI() {
               return (
                 <div
                   key={msg.id || index}
-                  className={`w-full flex mb-1.5 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
+                  className={`w-full flex mb-1.5 items-end gap-2 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
                 >
+                  {/* Profile photo for other user's messages (left side) */}
+                  {!isOwnMessage && (
+                    <div className="flex-shrink-0">
+                      {getProfilePhoto(msg.username?.toLowerCase()) ? (
+                        <img
+                          src={getProfilePhoto(msg.username?.toLowerCase())}
+                          alt={msg.username}
+                          className="w-8 h-8 rounded-full object-cover cursor-pointer"
+                          onClick={() => {
+                            setModalPhoto(getProfilePhoto(msg.username?.toLowerCase()));
+                            setShowPhotoModal(true);
+                          }}
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-teal-600 flex items-center justify-center font-bold text-xs text-white">
+                          {getInitials(msg.username || 'U')}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
                   <div 
                     className={`inline-block max-w-[75%] px-2.5 py-1.5 rounded-lg ${
                       isOwnMessage 
@@ -715,6 +748,27 @@ export default function ChatUI() {
                       )}
                     </div>
                   </div>
+                  
+                  {/* Profile photo for own messages (right side) - optional, usually not shown */}
+                  {isOwnMessage && false && (
+                    <div className="flex-shrink-0">
+                      {getProfilePhoto(username?.toLowerCase()) ? (
+                        <img
+                          src={getProfilePhoto(username?.toLowerCase())}
+                          alt={username}
+                          className="w-8 h-8 rounded-full object-cover cursor-pointer"
+                          onClick={() => {
+                            setModalPhoto(getProfilePhoto(username?.toLowerCase()));
+                            setShowPhotoModal(true);
+                          }}
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-teal-600 flex items-center justify-center font-bold text-xs text-white">
+                          {getInitials(username || 'U')}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}
