@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import io from 'socket.io-client';
 
 // Emoji picker data
@@ -658,7 +658,7 @@ export default function ChatUI() {
     } else {
       document.documentElement.classList.remove('dark');
     }
-  }, []);
+  }, [isDarkMode]);
 
   // Listen for message read receipts
   useEffect(() => {
@@ -796,7 +796,7 @@ export default function ChatUI() {
   };
 
   // Mark messages as read
-  const markMessagesAsRead = () => {
+  const markMessagesAsRead = useCallback(() => {
     if (!socket || !username) return;
     
     const unreadMessages = messages.filter(msg => {
@@ -815,7 +815,7 @@ export default function ChatUI() {
         readBy: username.toLowerCase()
       });
     });
-  };
+  }, [socket, username, messages, userId, messageReadStatus]);
 
   // Add reaction to message
   const addReaction = (messageId, emoji) => {
@@ -912,7 +912,7 @@ export default function ChatUI() {
       }, 1000);
       return () => clearTimeout(timer);
     }
-  }, [messages, hasJoined, username]);
+  }, [messages, hasJoined, markMessagesAsRead]);
 
   // Get other user's name (for header)
   const getOtherUserName = () => {
