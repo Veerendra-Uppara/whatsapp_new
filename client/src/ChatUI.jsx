@@ -34,6 +34,7 @@ export default function ChatUI() {
   const typingTimeoutRef = useRef(null);
   const fileInputRef = useRef(null);
   const messageInputRef = useRef(null);
+  const profilePhotoInputRef = useRef(null);
 
   // Allowed users - only these 2 can login
   const allowedUsers = [
@@ -285,6 +286,87 @@ export default function ChatUI() {
         setImagePreview(reader.result);
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  const handleProfilePhotoSelect = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Image size should be less than 5MB');
+      return;
+    }
+
+    // Convert to base64
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const photoBase64 = reader.result; // This is already in data:image/... format
+      
+      try {
+        const apiUrl = getBackendUrl();
+        const response = await fetch(`${apiUrl}/api/user-photo/${username.toLowerCase()}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ photoBase64 }),
+        });
+
+        if (response.ok) {
+          // Update local state immediately
+          setProfilePhotos((prev) => ({
+            ...prev,
+            [username.toLowerCase()]: photoBase64,
+          }));
+          alert('Profile photo updated successfully!');
+          // Refresh photos for all users
+          if (hasJoined) {
+            // Re-fetch all photos
+            const uniqueUsers = new Set();
+            if (username) uniqueUsers.add(username.toLowerCase());
+            messages.forEach(msg => {
+              if (msg.username) uniqueUsers.add(msg.username.toLowerCase());
+            });
+            uniqueUsers.add('veerendra');
+            uniqueUsers.add('madhu');
+            
+            const photos = { ...profilePhotos };
+            for (const user of Array.from(uniqueUsers)) {
+              try {
+                const photoResponse = await fetch(`${apiUrl}/api/user-photo/${user}`);
+                if (photoResponse.ok) {
+                  const data = await photoResponse.json();
+                  if (data.photo) {
+                    photos[user] = data.photo;
+                  }
+                }
+              } catch (err) {
+                console.error(`Error fetching photo for ${user}:`, err);
+              }
+            }
+            setProfilePhotos(photos);
+          }
+        } else {
+          const errorData = await response.json();
+          alert(`Failed to upload profile photo: ${errorData.error || 'Unknown error'}`);
+        }
+      } catch (err) {
+        console.error('Error uploading profile photo:', err);
+        alert('Failed to upload profile photo. Please try again.');
+      }
+    };
+
+    reader.readAsDataURL(file);
+    
+    // Reset file input
+    if (profilePhotoInputRef.current) {
+      profilePhotoInputRef.current.value = '';
     }
   };
 
@@ -653,6 +735,43 @@ export default function ChatUI() {
                   onChange={(e) => setOtherMessageColor(e.target.value)}
                   className="flex-1 bg-[#2a3942] text-white text-xs px-2 py-1 rounded outline-none"
                   placeholder="#202c33"
+                />
+              </div>
+            </div>
+
+            {/* Profile Photo Upload */}
+            <div className="mb-4 border-t border-gray-700 pt-4">
+              <label className="text-xs text-gray-400 mb-2 block">
+                Your Profile Photo
+              </label>
+              <div className="flex items-center gap-3">
+                {/* Current Profile Photo Preview */}
+                <div className="flex-shrink-0">
+                  {getProfilePhoto(username?.toLowerCase()) ? (
+                    <img
+                      src={getProfilePhoto(username?.toLowerCase())}
+                      alt={username}
+                      className="w-12 h-12 rounded-full object-cover border-2 border-gray-600"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded-full bg-teal-600 flex items-center justify-center font-bold text-sm border-2 border-gray-600">
+                      {getInitials(username || 'U')}
+                    </div>
+                  )}
+                </div>
+                {/* Upload Button */}
+                <button
+                  onClick={() => profilePhotoInputRef.current?.click()}
+                  className="flex-1 bg-[#2a3942] hover:bg-[#34434a] text-white text-xs py-2 px-3 rounded transition-colors"
+                >
+                  Change Photo
+                </button>
+                <input
+                  type="file"
+                  ref={profilePhotoInputRef}
+                  onChange={handleProfilePhotoSelect}
+                  accept="image/*"
+                  className="hidden"
                 />
               </div>
             </div>

@@ -4,7 +4,7 @@ const socketIo = require('socket.io');
 const path = require('path');
 const cors = require('cors');
 const fs = require('fs');
-const { initDatabase, saveMessage, getMessages, deleteMessage, getUserProfilePhoto } = require('./database');
+const { initDatabase, saveMessage, getMessages, deleteMessage, getUserProfilePhoto, saveUserProfilePhoto } = require('./database');
 
 const app = express();
 const server = http.createServer(app);
@@ -215,6 +215,33 @@ app.get('/api/user-photo/:username', async (req, res) => {
   } catch (err) {
     console.error('Error fetching user photo:', err);
     res.status(500).json({ error: 'Failed to fetch user photo' });
+  }
+});
+
+// API route to upload/update user profile photo
+app.post('/api/user-photo/:username', async (req, res) => {
+  try {
+    if (!db) {
+      return res.status(503).json({ error: 'Database not initialized' });
+    }
+    const { username } = req.params;
+    const { photoBase64 } = req.body;
+    
+    if (!photoBase64) {
+      return res.status(400).json({ error: 'Photo data is required' });
+    }
+    
+    // Validate that photoBase64 is a valid base64 string
+    if (typeof photoBase64 !== 'string' || !photoBase64.startsWith('data:image/')) {
+      return res.status(400).json({ error: 'Invalid photo format. Must be base64 image data URL.' });
+    }
+    
+    await saveUserProfilePhoto(username, photoBase64);
+    console.log(`✅ Profile photo updated for ${username}`);
+    res.json({ success: true, message: 'Profile photo updated successfully' });
+  } catch (err) {
+    console.error('Error saving user photo:', err);
+    res.status(500).json({ error: 'Failed to save user photo' });
   }
 });
 
