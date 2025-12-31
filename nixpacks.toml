@@ -3,6 +3,9 @@ nixPkgs = ["nodejs-18_x"]
 
 [phases.install]
 cmds = [
+  "pwd",
+  "ls -la",
+  "test -f package.json || (echo 'ERROR: package.json not found!' && exit 1)",
   "npm run install-all"
 ]
 
