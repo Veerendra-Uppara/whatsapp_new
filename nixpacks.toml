@@ -15,5 +15,5 @@ cmds = [
 ]
 
 [start]
-cmd = "bash start.sh"
+cmd = "npm start"
 
