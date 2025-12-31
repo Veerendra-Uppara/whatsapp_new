@@ -1,24 +1,27 @@
 {
-  "name": "private-chat-app",
+  "name": "whatsapp-chat-app",
   "version": "1.0.0",
-  "description": "End-to-end private chat application for couples",
+  "description": "Full-stack private chat application",
   "scripts": {
+    "install-all": "npm run install-server && npm run install-client",
     "install-server": "cd server && npm install",
     "install-client": "cd client && npm install",
-    "install-all": "npm run install-server && npm run install-client",
-    "dev-server": "cd server && npm run dev",
-    "dev-client": "cd client && npm start",
     "build": "cd client && npm run build",
-    "start": "cd server && npm start"
+    "start": "node server/index.js",
+    "dev": "concurrently \"npm run dev-server\" \"npm run dev-client\"",
+    "dev-server": "cd server && npm run dev",
+    "dev-client": "cd client && npm start"
   },
   "keywords": [
     "chat",
-    "private",
+    "whatsapp",
     "socket.io",
     "react",
     "nodejs"
   ],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
 }
-

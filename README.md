@@ -1,25 +1,27 @@
-# 💕 Private Chat Application
+# 💕 WhatsApp-Style Private Chat Application
 
-An end-to-end private chat application built with React and Node.js, perfect for couples to communicate privately.
+Full-stack private chat application with React frontend and Node.js backend, perfect for couples to communicate privately.
 
 ## Features
 
 - ✨ Real-time messaging using Socket.io
-- 💾 Message persistence with SQLite database
+- 💾 Message persistence with MongoDB
 - 💕 Beautiful, modern UI design
 - 🔒 Private chat between users
 - ⌨️ Typing indicators
 - 📱 Responsive design (mobile-friendly)
 - 📜 Chat history - messages are saved and loaded automatically
-- ☁️ Ready for Oracle Cloud deployment
+- 🖼️ Image and audio message support
+- 😊 Emoji reactions
+- 🚂 Ready for Railway deployment
 
 ## Tech Stack
 
-- **Frontend**: React 18
+- **Frontend**: React 18 + Tailwind CSS
 - **Backend**: Node.js + Express
 - **Real-time**: Socket.io
-- **Database**: SQLite (file-based, perfect for cloud deployment)
-- **Containerization**: Docker
+- **Database**: MongoDB Atlas
+- **Deployment**: Railway
 
 ## Local Development
 
@@ -57,6 +59,15 @@ cd client
 npm start
 ```
 
+**Option C: Using root npm scripts (Recommended)**
+```bash
+# Install all dependencies first
+npm run install-all
+
+# Start both frontend and backend together
+npm run dev
+```
+
 3. Open [http://localhost:3000](http://localhost:3000) in your browser (dev mode) or [http://localhost:5000](http://localhost:5000) (production mode)
 
 ## Docker Build
@@ -80,51 +91,66 @@ docker-compose up -d
 
 This will persist the database file in a Docker volume, so your messages won't be lost when the container restarts.
 
-## Oracle Cloud Deployment
+## 🚂 Railway Deployment
 
-### Using Oracle Cloud Infrastructure (OCI)
+### Step 1: Push to GitHub
 
-1. **Push Docker image to Oracle Container Registry**:
 ```bash
-# Login to Oracle Cloud
-docker login <region-key>.ocir.io
-
-# Tag your image
-docker tag private-chat-app <region-key>.ocir.io/<tenancy-namespace>/private-chat-app:latest
-
-# Push the image
-docker push <region-key>.ocir.io/<tenancy-namespace>/private-chat-app:latest
+git init
+git add .
+git commit -m "Full stack app ready for Railway"
+git remote add origin https://github.com/Veerendra-Uppara/whatsapp_new.git
+git branch -M main
+git push -u origin main
 ```
 
-2. **Deploy to OCI Container Instances or Kubernetes**:
-   - Create a Container Instance or Kubernetes cluster
-   - Use the pushed image
-   - Set environment variables if needed (PORT, etc.)
-   - Expose port 5000
+### Step 2: Deploy on Railway
 
-### Using Oracle Cloud Always Free Tier
+1. Go to [Railway.app](https://railway.app)
+2. Sign up/Login with GitHub
+3. Click **"New Project"**
+4. Select **"Deploy from GitHub repo"**
+5. Choose `whatsapp_new` repository
+6. Railway will auto-detect and deploy!
 
-1. Build the Docker image on your local machine
-2. Create an OCI Container Instance:
-   - Go to OCI Console → Developer Services → Container Instances
-   - Create new instance
-   - Use your Docker image
-   - Set port 5000
-   - Configure networking (public IP if needed)
+### Step 3: Environment Variables (Optional)
 
-3. Access your application via the public IP address assigned
+In Railway dashboard → Variables, you can add:
+- `PORT` (usually auto-set by Railway)
+- `NODE_ENV=production`
+
+**Note:** Since frontend and backend are on the same server, no `REACT_APP_SOCKET_URL` is needed! The app automatically uses `window.location.origin` for the socket connection.
+
+### Step 4: Get Your URL
+
+After deployment, Railway provides a URL like:
+`https://your-app.railway.app`
+
+Your app will be live at this URL! 🎉
+
+### How It Works
+
+Railway automatically:
+1. Installs all dependencies (`npm run install-all`)
+2. Builds React app (`npm run build`)
+3. Starts Node.js server (`npm start`)
+4. Serves both frontend and backend from the same server
+
+The Express server serves the built React app from `client/build`, so everything runs on a single URL.
 
 ## Environment Variables
 
-You can set the following environment variables:
+### Local Development
 
 - `PORT`: Server port (default: 5000)
 - `REACT_APP_SOCKET_URL`: Socket.io server URL for frontend (default: http://localhost:5000)
 
-Example:
-```bash
-docker run -p 5000:5000 -e PORT=5000 private-chat-app
-```
+### Railway Deployment
+
+- `PORT`: Auto-set by Railway (usually dynamic)
+- `NODE_ENV`: Set to `production` (optional)
+
+**Note:** For Railway, the app automatically detects it's running on the same server and uses `window.location.origin` for socket connections. No additional environment variables needed!
 
 ## Usage
 

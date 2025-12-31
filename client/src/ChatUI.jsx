@@ -125,17 +125,10 @@ export default function ChatUI() {
       return 'http://localhost:5000';
     }
     
-    // For production, warn if env variable is missing
-    if (window.location.hostname.includes('pages.dev') || window.location.hostname.includes('cloudflare')) {
-      console.error('⚠️ REACT_APP_SOCKET_URL not set! Profile photos and socket may not work.');
-      console.error('⚠️ Please set REACT_APP_SOCKET_URL in Cloudflare Pages environment variables.');
-      console.error('⚠️ Make sure to use HTTPS URL (e.g., https://your-app.railway.app)');
-    }
-    
-    // Fallback: try using current hostname (won't work for Cloudflare + Railway)
-    // Use HTTPS if frontend is HTTPS to avoid mixed content issues
-    const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-    return `${protocol}//${hostname}:5000`;
+    // For Railway/production: use same origin (frontend and backend on same server)
+    // This works because Express serves the React build from the same server
+    // No need for separate backend URL when deployed together
+    return window.location.origin;
   }, [customBackendUrl]);
 
   // Test connection to backend
