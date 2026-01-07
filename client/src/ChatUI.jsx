@@ -28,6 +28,8 @@ export default function ChatUI() {
   // Use refs to access current username/userId in event handlers without adding to dependencies
   const usernameRef = useRef(username);
   const userIdRef = useRef(userId);
+  // Track if user has manually edited fields to prevent auto-login from interfering
+  const userIsTyping = useRef(false);
   
   // Keep refs in sync with state
   useEffect(() => {
@@ -437,39 +439,41 @@ export default function ChatUI() {
   // Auto-login when socket connects and credentials are available
   // Only auto-login once when socket connects, not while user is typing
   useEffect(() => {
+    // Don't auto-login if user is actively typing
+    if (userIsTyping.current) {
+      return;
+    }
+    
     if (socket && isConnected && !hasJoined) {
       const savedUsername = localStorage.getItem('savedUsername');
       const savedUserId = localStorage.getItem('savedUserId');
       
-      // Only auto-login if we have saved credentials
-      // Check if current values match saved (meaning they're from localStorage, not user input)
-      if (savedUsername && savedUserId) {
-        // Only proceed if current state matches saved (user hasn't modified them yet)
-        if (username === savedUsername && userId === savedUserId) {
-          console.log('Auto-login with saved credentials:', savedUsername);
-          // Validate credentials before auto-login
-          const allowedUsers = [
-            { username: 'veerendra', userId: 'veeru@123' },
-            { username: 'madhu', userId: 'madhu@123' }
-          ];
-          
-          const isValid = allowedUsers.some(
-            user => user.username === savedUsername.trim().toLowerCase() && user.userId === savedUserId.trim()
-          );
-          
-          if (isValid) {
-            socket.emit('join', { username: savedUsername.trim().toLowerCase(), userId: savedUserId.trim() });
-            setHasJoined(true);
-          } else {
-            // Clear invalid saved credentials (but don't clear state - let user type)
-            localStorage.removeItem('savedUsername');
-            localStorage.removeItem('savedUserId');
-          }
+      // Only auto-login if we have saved credentials that match current state
+      // This means they were restored from localStorage, not typed by user
+      if (savedUsername && savedUserId && 
+          username === savedUsername && userId === savedUserId) {
+        console.log('Auto-login with saved credentials:', savedUsername);
+        // Validate credentials before auto-login
+        const allowedUsers = [
+          { username: 'veerendra', userId: 'veeru@123' },
+          { username: 'madhu', userId: 'madhu@123' }
+        ];
+        
+        const isValid = allowedUsers.some(
+          user => user.username === savedUsername.trim().toLowerCase() && user.userId === savedUserId.trim()
+        );
+        
+        if (isValid) {
+          socket.emit('join', { username: savedUsername.trim().toLowerCase(), userId: savedUserId.trim() });
+          setHasJoined(true);
+        } else {
+          // Clear invalid saved credentials (but don't clear state - let user type)
+          localStorage.removeItem('savedUsername');
+          localStorage.removeItem('savedUserId');
         }
-        // If current values don't match saved, user is typing - don't interfere
       }
     }
-  }, [socket, isConnected, hasJoined]); // Removed username and userId from dependencies to prevent clearing while typing
+  }, [socket, isConnected, hasJoined, username, userId]); // Include username/userId but check userIsTyping ref first
 
   useEffect(() => {
     scrollToBottom();
@@ -1330,6 +1334,7 @@ export default function ChatUI() {
                   placeholder="Enter your name"
                   value={username}
                   onChange={(e) => {
+                    userIsTyping.current = true; // Mark that user is typing
                     setUsername(e.target.value);
                     setLoginError('');
                   }}
@@ -1345,6 +1350,7 @@ export default function ChatUI() {
                   placeholder="Enter your ID"
                   value={userId}
                   onChange={(e) => {
+                    userIsTyping.current = true; // Mark that user is typing
                     setUserId(e.target.value);
                     setLoginError('');
                   }}
