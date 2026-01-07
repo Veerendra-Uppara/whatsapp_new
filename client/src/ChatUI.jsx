@@ -17,13 +17,17 @@ const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 
 export default function ChatUI() {
   const [socket, setSocket] = useState(null);
+  // Store initial values from localStorage to detect if user has modified them
+  const initialUsername = useRef(localStorage.getItem('savedUsername') || '');
+  const initialUserId = useRef(localStorage.getItem('savedUserId') || '');
+  
   const [username, setUsername] = useState(() => {
     // Restore from localStorage on mount
-    return localStorage.getItem('savedUsername') || '';
+    return initialUsername.current;
   });
   const [userId, setUserId] = useState(() => {
     // Restore from localStorage on mount
-    return localStorage.getItem('savedUserId') || '';
+    return initialUserId.current;
   });
   // Use refs to access current username/userId in event handlers without adding to dependencies
   const usernameRef = useRef(username);
@@ -439,46 +443,44 @@ export default function ChatUI() {
   // Auto-login when socket connects and credentials are available
   // Only auto-login once when socket first connects, not while user is typing
   useEffect(() => {
-    // Don't auto-login if user is actively typing
-    if (userIsTyping.current) {
+    // Don't auto-login if user is actively typing OR if values have changed from initial
+    if (userIsTyping.current || 
+        username !== initialUsername.current || 
+        userId !== initialUserId.current) {
       return;
     }
     
     // Only run when socket connects, not when username/userId changes
     if (socket && isConnected && !hasJoined) {
-      const savedUsername = localStorage.getItem('savedUsername');
-      const savedUserId = localStorage.getItem('savedUserId');
+      const savedUsername = initialUsername.current;
+      const savedUserId = initialUserId.current;
       
-      // Only auto-login if we have saved credentials
-      // Check if current state matches saved (meaning they were restored from localStorage on mount)
+      // Only auto-login if we have saved credentials that haven't been modified
       if (savedUsername && savedUserId) {
-        // Only proceed if current state exactly matches saved (user hasn't modified them)
-        // This ensures we only auto-login with restored credentials, not while user is typing
-        if (username === savedUsername && userId === savedUserId) {
-          console.log('Auto-login with saved credentials:', savedUsername);
-          // Validate credentials before auto-login
-          const allowedUsers = [
-            { username: 'veerendra', userId: 'veeru@123' },
-            { username: 'madhu', userId: 'madhu@123' }
-          ];
-          
-          const isValid = allowedUsers.some(
-            user => user.username === savedUsername.trim().toLowerCase() && user.userId === savedUserId.trim()
-          );
-          
-          if (isValid) {
-            socket.emit('join', { username: savedUsername.trim().toLowerCase(), userId: savedUserId.trim() });
-            setHasJoined(true);
-          } else {
-            // Clear invalid saved credentials (but don't clear state - let user type)
-            localStorage.removeItem('savedUsername');
-            localStorage.removeItem('savedUserId');
-          }
+        console.log('Auto-login with saved credentials:', savedUsername);
+        // Validate credentials before auto-login
+        const allowedUsers = [
+          { username: 'veerendra', userId: 'veeru@123' },
+          { username: 'madhu', userId: 'madhu@123' }
+        ];
+        
+        const isValid = allowedUsers.some(
+          user => user.username === savedUsername.trim().toLowerCase() && user.userId === savedUserId.trim()
+        );
+        
+        if (isValid) {
+          socket.emit('join', { username: savedUsername.trim().toLowerCase(), userId: savedUserId.trim() });
+          setHasJoined(true);
+        } else {
+          // Clear invalid saved credentials (but don't clear state - let user type)
+          localStorage.removeItem('savedUsername');
+          localStorage.removeItem('savedUserId');
+          initialUsername.current = '';
+          initialUserId.current = '';
         }
-        // If current values don't match saved, user is typing - don't interfere at all
       }
     }
-  }, [socket, isConnected, hasJoined]); // Removed username and userId - only run when socket connects
+  }, [socket, isConnected, hasJoined, username, userId]); // Check username/userId to detect changes, but return early if modified
 
   useEffect(() => {
     scrollToBottom();
