@@ -437,43 +437,48 @@ export default function ChatUI() {
   }, [customBackendUrl, getBackendUrl]); // Reconnect when custom backend URL changes
 
   // Auto-login when socket connects and credentials are available
-  // Only auto-login once when socket connects, not while user is typing
+  // Only auto-login once when socket first connects, not while user is typing
   useEffect(() => {
     // Don't auto-login if user is actively typing
     if (userIsTyping.current) {
       return;
     }
     
+    // Only run when socket connects, not when username/userId changes
     if (socket && isConnected && !hasJoined) {
       const savedUsername = localStorage.getItem('savedUsername');
       const savedUserId = localStorage.getItem('savedUserId');
       
-      // Only auto-login if we have saved credentials that match current state
-      // This means they were restored from localStorage, not typed by user
-      if (savedUsername && savedUserId && 
-          username === savedUsername && userId === savedUserId) {
-        console.log('Auto-login with saved credentials:', savedUsername);
-        // Validate credentials before auto-login
-        const allowedUsers = [
-          { username: 'veerendra', userId: 'veeru@123' },
-          { username: 'madhu', userId: 'madhu@123' }
-        ];
-        
-        const isValid = allowedUsers.some(
-          user => user.username === savedUsername.trim().toLowerCase() && user.userId === savedUserId.trim()
-        );
-        
-        if (isValid) {
-          socket.emit('join', { username: savedUsername.trim().toLowerCase(), userId: savedUserId.trim() });
-          setHasJoined(true);
-        } else {
-          // Clear invalid saved credentials (but don't clear state - let user type)
-          localStorage.removeItem('savedUsername');
-          localStorage.removeItem('savedUserId');
+      // Only auto-login if we have saved credentials
+      // Check if current state matches saved (meaning they were restored from localStorage on mount)
+      if (savedUsername && savedUserId) {
+        // Only proceed if current state exactly matches saved (user hasn't modified them)
+        // This ensures we only auto-login with restored credentials, not while user is typing
+        if (username === savedUsername && userId === savedUserId) {
+          console.log('Auto-login with saved credentials:', savedUsername);
+          // Validate credentials before auto-login
+          const allowedUsers = [
+            { username: 'veerendra', userId: 'veeru@123' },
+            { username: 'madhu', userId: 'madhu@123' }
+          ];
+          
+          const isValid = allowedUsers.some(
+            user => user.username === savedUsername.trim().toLowerCase() && user.userId === savedUserId.trim()
+          );
+          
+          if (isValid) {
+            socket.emit('join', { username: savedUsername.trim().toLowerCase(), userId: savedUserId.trim() });
+            setHasJoined(true);
+          } else {
+            // Clear invalid saved credentials (but don't clear state - let user type)
+            localStorage.removeItem('savedUsername');
+            localStorage.removeItem('savedUserId');
+          }
         }
+        // If current values don't match saved, user is typing - don't interfere at all
       }
     }
-  }, [socket, isConnected, hasJoined, username, userId]); // Include username/userId but check userIsTyping ref first
+  }, [socket, isConnected, hasJoined]); // Removed username and userId - only run when socket connects
 
   useEffect(() => {
     scrollToBottom();
