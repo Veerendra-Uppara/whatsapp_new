@@ -435,30 +435,41 @@ export default function ChatUI() {
   }, [customBackendUrl, getBackendUrl]); // Reconnect when custom backend URL changes
 
   // Auto-login when socket connects and credentials are available
+  // Only auto-login once when socket connects, not while user is typing
   useEffect(() => {
-    if (socket && isConnected && username && userId && !hasJoined) {
-      console.log('Auto-login with saved credentials:', username);
-      // Validate credentials before auto-login
-      const allowedUsers = [
-        { username: 'veerendra', userId: 'veeru@123' },
-        { username: 'madhu', userId: 'madhu@123' }
-      ];
+    if (socket && isConnected && !hasJoined) {
+      const savedUsername = localStorage.getItem('savedUsername');
+      const savedUserId = localStorage.getItem('savedUserId');
       
-      const isValid = allowedUsers.some(
-        user => user.username === username.trim().toLowerCase() && user.userId === userId.trim().toLowerCase()
-      );
-      
-      if (isValid) {
-        socket.emit('join', { username: username.trim().toLowerCase(), userId: userId.trim() });
-      } else {
-        // Clear invalid saved credentials
-        localStorage.removeItem('savedUsername');
-        localStorage.removeItem('savedUserId');
-        setUsername('');
-        setUserId('');
+      // Only auto-login if we have saved credentials
+      // Check if current values match saved (meaning they're from localStorage, not user input)
+      if (savedUsername && savedUserId) {
+        // Only proceed if current state matches saved (user hasn't modified them yet)
+        if (username === savedUsername && userId === savedUserId) {
+          console.log('Auto-login with saved credentials:', savedUsername);
+          // Validate credentials before auto-login
+          const allowedUsers = [
+            { username: 'veerendra', userId: 'veeru@123' },
+            { username: 'madhu', userId: 'madhu@123' }
+          ];
+          
+          const isValid = allowedUsers.some(
+            user => user.username === savedUsername.trim().toLowerCase() && user.userId === savedUserId.trim()
+          );
+          
+          if (isValid) {
+            socket.emit('join', { username: savedUsername.trim().toLowerCase(), userId: savedUserId.trim() });
+            setHasJoined(true);
+          } else {
+            // Clear invalid saved credentials (but don't clear state - let user type)
+            localStorage.removeItem('savedUsername');
+            localStorage.removeItem('savedUserId');
+          }
+        }
+        // If current values don't match saved, user is typing - don't interfere
       }
     }
-  }, [socket, isConnected, hasJoined, username, userId]);
+  }, [socket, isConnected, hasJoined]); // Removed username and userId from dependencies to prevent clearing while typing
 
   useEffect(() => {
     scrollToBottom();
